@@ -186,25 +186,28 @@
 
   <!-- ── ROUTE SCREEN ── -->
   <div class="screen active" id="screen-route">
-    <div class="section-header"><span class="section-title">Select Region</span></div>
-    <div class="region-chips" id="region-chips">
-      <div class="chip selected" onclick="selectRegion(this,'All')">All Shops</div>
-      <div class="chip" onclick="selectRegion(this,'South')">South</div>
-      <div class="chip" onclick="selectRegion(this,'Negev')">Negev</div>
-      <div class="chip" onclick="selectRegion(this,'Eilat')">Eilat</div>
-      <div class="chip" onclick="selectRegion(this,'Beer Sheva')">Beer Sheva</div>
-      <div class="chip" onclick="selectRegion(this,'Ashdod')">Ashdod</div>
-      <div class="chip" onclick="selectRegion(this,'Ashkelon')">Ashkelon</div>
-    </div>
-    <div style="padding: 0 0.9rem 0.5rem;">
-      <button class="btn btn-primary btn-block" onclick="planRoute()" id="plan-btn">🗺️ Plan My Day</button>
-    </div>
-    <div id="route-list">
-      <div class="empty-state">
-        <div class="empty-icon">🗺️</div>
-        <div class="empty-text">Choose a region and tap<br>"Plan My Day" to optimize your route</div>
+    <div id="route-step1">
+      <div class="section-header">
+        <span class="section-title">Select Shops for Today</span>
+        <span id="selected-count" style="font-size:0.8rem;color:var(--wine);font-weight:700">0 selected</span>
+      </div>
+      <div class="region-chips" id="region-chips">
+        <div class="chip selected" onclick="filterRegion(this,'All')">All</div>
+        <div class="chip" onclick="filterRegion(this,'South')">South</div>
+        <div class="chip" onclick="filterRegion(this,'Negev')">Negev</div>
+        <div class="chip" onclick="filterRegion(this,'Eilat')">Eilat</div>
+        <div class="chip" onclick="filterRegion(this,'Beer Sheva')">Beer Sheva</div>
+        <div class="chip" onclick="filterRegion(this,'Ashdod')">Ashdod</div>
+        <div class="chip" onclick="filterRegion(this,'Ashkelon')">Ashkelon</div>
+      </div>
+      <div id="shop-selector-list" class="card" style="padding:0;margin:0 0.9rem 0.5rem">
+        <div class="loading"><div class="spinner"></div> Loading shops...</div>
+      </div>
+      <div style="padding:0 0.9rem 0.6rem">
+        <button class="btn btn-primary btn-block" onclick="planRoute()" id="plan-btn">🗺️ Plan My Day</button>
       </div>
     </div>
+    <div id="route-list"></div>
   </div>
 
   <!-- ── MAP SCREEN ── -->
@@ -341,7 +344,7 @@ const S = {
   shops: [], sales: [],
   currentScreen: 'route', selectedRegion: 'All',
   salesFilter: 'today', reportPeriod: 'day',
-  map: null, markers: [], routeShops: []
+  map: null, markers: [], routeShops: [], routeLine: null
 };
 
 // ══════════════════════════════════════════
@@ -374,6 +377,7 @@ async function onLogin() {
   await Promise.all([loadShops(), loadSales()]);
   renderShops(); renderSales(); renderReports();
   initMap();
+  renderShopSelector();
   updateFAB();
   showToast('Ready ✓');
 }
@@ -503,32 +507,65 @@ function fabAction() {
 }
 
 // ══════════════════════════════════════════
-// ROUTE PLANNER
+// ROUTE PLANNER — Shop selector + optimizer
 // ══════════════════════════════════════════
-let _selRegion = 'All';
-function selectRegion(el, region) {
+let _filterRegion = 'All';
+let _selectedShopIds = new Set();
+
+function filterRegion(el, region) {
   document.querySelectorAll('#region-chips .chip').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
-  _selRegion = region;
-  // Auto-replan if route already exists
-  if (S.routeShops.length > 0) planRoute();
+  _filterRegion = region;
+  renderShopSelector();
+}
+
+function renderShopSelector() {
+  const list = document.getElementById('shop-selector-list');
+  const shops = _filterRegion === 'All' ? S.shops : S.shops.filter(s => s.region.trim() === _filterRegion.trim());
+  if (!shops.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:1.2rem"><div class="empty-text">No shops in this region</div></div>';
+    return;
+  }
+  list.innerHTML = shops.map(s => `
+    <div class="shop-item" onclick="toggleShopSelect('${s.id}',this)" style="cursor:pointer">
+      <div class="shop-avatar" style="background:${_selectedShopIds.has(s.id)?'var(--success)':'var(--wine)'}">
+        ${_selectedShopIds.has(s.id) ? '✓' : s.name.charAt(0).toUpperCase()}
+      </div>
+      <div class="shop-info">
+        <div class="shop-name">${s.name}</div>
+        <div class="shop-detail">📍 ${s.address}, ${s.city} · <span class="badge">${s.region}</span></div>
+      </div>
+      <div>
+        <div style="width:22px;height:22px;border-radius:50%;border:2px solid ${_selectedShopIds.has(s.id)?'var(--success)':'var(--light-gray)'};background:${_selectedShopIds.has(s.id)?'var(--success)':'white'};display:flex;align-items:center;justify-content:center;color:white;font-size:0.75rem">${_selectedShopIds.has(s.id)?'✓':''}</div>
+      </div>
+    </div>`).join('');
+  updateSelectedCount();
+}
+
+function toggleShopSelect(id, el) {
+  if (_selectedShopIds.has(id)) _selectedShopIds.delete(id);
+  else _selectedShopIds.add(id);
+  renderShopSelector();
+}
+
+function updateSelectedCount() {
+  document.getElementById('selected-count').textContent = `${_selectedShopIds.size} selected`;
 }
 
 async function planRoute() {
+  if (_selectedShopIds.size === 0) { showToast('Select at least one shop first'); return; }
   const btn = document.getElementById('plan-btn');
   btn.disabled = true; btn.textContent = '⏳ Planning...';
-  // Reload shops from sheet to get latest data
   await loadShops();
-  let shops = _selRegion==='All' ? [...S.shops] : S.shops.filter(s => s.region.trim() === _selRegion.trim());
-  if (!shops.length) { showToast('No shops in this region'); btn.disabled=false; btn.textContent='🗺️ Plan My Day'; return; }
+  let shops = S.shops.filter(s => _selectedShopIds.has(s.id));
+  if (!shops.length) { showToast('Selected shops not found'); btn.disabled=false; btn.textContent='🗺️ Plan My Day'; return; }
 
-  // Geocode missing coords
-  showToast(`Geocoding ${shops.length} shops...`);
+  showToast(`Locating ${shops.length} shops...`);
   for (const shop of shops) {
     if (!shop.lat || !shop.lng) {
       const c = await geocode(shop.address, shop.city);
       if (c) { shop.lat=c.lat; shop.lng=c.lng; await updateShopCoords(shop); }
-      await new Promise(r=>setTimeout(r,1100)); // Nominatim rate limit: 1 req/sec
+      await new Promise(r=>setTimeout(r,1100));
     }
   }
   const withCoords = shops.filter(s => s.lat && s.lng);
@@ -538,34 +575,47 @@ async function planRoute() {
   const optimized = await optimizeRoute(withCoords);
   S.routeShops = optimized.map(s => ({...s, visited:false}));
   renderRoute();
+  updateMapMarkers(); // update map with route line
   btn.disabled=false; btn.textContent='🗺️ Plan My Day';
   showToast(`✓ Route ready — ${S.routeShops.length} stops`);
 }
 
 function renderRoute() {
   const c = document.getElementById('route-list');
-  if (!S.routeShops.length) { c.innerHTML='<div class="empty-state"><div class="empty-icon">🗺️</div><div class="empty-text">Press Plan My Day to generate route</div></div>'; return; }
-  c.innerHTML = `<div class="section-header"><span class="section-title">Today — ${S.routeShops.length} stops</span></div>
-  <div class="card" style="padding:0">
-    ${S.routeShops.map((s,i)=>`
-      <div class="route-item">
-        <div class="route-num ${s.visited?'visited':''}">${s.visited?'✓':i+1}</div>
-        <div class="route-info">
-          <div class="route-name">${s.name}</div>
-          <div class="route-sub">📍 ${s.address}, ${s.city}</div>
-          ${s.contact?`<div class="route-sub">👤 ${s.contact}${s.phone?' · '+s.phone:''}</div>`:''}
-        </div>
-        <div class="route-btns">
-          <button class="btn btn-sm btn-waze" onclick="openWaze(${s.lat},${s.lng})">🚗</button>
-          <button class="btn btn-sm btn-success" onclick="markVisited(${i})">✓</button>
-          <button class="btn btn-sm btn-secondary" onclick="openSaleForShop('${s.id}')">🍷</button>
-        </div>
-      </div>`).join('')}
-  </div>`;
+  if (!S.routeShops.length) { c.innerHTML=''; return; }
+  c.innerHTML = `
+    <div class="section-header">
+      <span class="section-title">Today — ${S.routeShops.length} stops</span>
+      <button class="btn btn-sm btn-secondary" onclick="clearRoute()">✕ Clear</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${S.routeShops.map((s,i)=>`
+        <div class="route-item">
+          <div class="route-num ${s.visited?'visited':''}">${s.visited?'✓':i+1}</div>
+          <div class="route-info">
+            <div class="route-name">${s.name}</div>
+            <div class="route-sub">📍 ${s.address}, ${s.city}</div>
+            ${s.contact?`<div class="route-sub">👤 ${s.contact}${s.phone?' · '+s.phone:''}</div>`:''}
+          </div>
+          <div class="route-btns">
+            <button class="btn btn-sm btn-waze" onclick="openWaze(${s.lat},${s.lng})">🚗</button>
+            <button class="btn btn-sm btn-success" onclick="markVisited(${i})">✓</button>
+            <button class="btn btn-sm btn-secondary" onclick="openSaleForShop('${s.id}')">🍷</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function clearRoute() {
+  S.routeShops = [];
+  _selectedShopIds = new Set();
+  renderRoute();
+  renderShopSelector();
+  updateMapMarkers();
 }
 
 function openWaze(lat, lng) { window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,'_blank'); }
-function markVisited(i) { S.routeShops[i].visited = !S.routeShops[i].visited; renderRoute(); renderReports(); }
+function markVisited(i) { S.routeShops[i].visited = !S.routeShops[i].visited; renderRoute(); updateMapMarkers(); renderReports(); }
 
 async function updateShopCoords(shop) {
   try {
@@ -587,13 +637,42 @@ function initMap() {
 function updateMapMarkers() {
   if (!S.map) return;
   S.markers.forEach(m=>m.remove()); S.markers=[];
-  const icon = L.divIcon({ html:'<div style="background:#722F37;color:white;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,0.35)">🍷</div>', className:'', iconSize:[30,30], iconAnchor:[15,15] });
-  S.shops.forEach(s => {
-    if (s.lat && s.lng) {
-      const m = L.marker([s.lat,s.lng],{icon}).bindPopup(`<b>${s.name}</b><br>${s.address}, ${s.city}<br>👤 ${s.contact||'—'}${s.phone?'<br>📞 '+s.phone:''}`).addTo(S.map);
+  if (S.routeLine) { S.map.removeLayer(S.routeLine); S.routeLine=null; }
+
+  // If a route is planned — show numbered route markers + route line
+  if (S.routeShops && S.routeShops.length > 0) {
+    const coords = [];
+    S.routeShops.forEach((s,i) => {
+      if (!s.lat || !s.lng) return;
+      coords.push([s.lat, s.lng]);
+      const color = s.visited ? '#10B981' : '#722F37';
+      const label = s.visited ? '✓' : (i+1);
+      const icon = L.divIcon({
+        html: `<div style="background:${color};color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid white">${label}</div>`,
+        className:'', iconSize:[32,32], iconAnchor:[16,16]
+      });
+      const m = L.marker([s.lat,s.lng],{icon})
+        .bindPopup(`<b>#${i+1} ${s.name}</b><br>${s.address}, ${s.city}<br>👤 ${s.contact||'—'}${s.phone?'<br>📞 '+s.phone:''}`)
+        .addTo(S.map);
       S.markers.push(m);
+    });
+    // Draw route line
+    if (coords.length > 1) {
+      S.routeLine = L.polyline(coords, { color:'#722F37', weight:4, opacity:0.7, dashArray:'8,5' }).addTo(S.map);
+      S.map.fitBounds(S.routeLine.getBounds(), { padding:[30,30] });
+    } else if (coords.length===1) {
+      S.map.setView(coords[0], 14);
     }
-  });
+  } else {
+    // No route — show all shops as plain wine pins
+    const icon = L.divIcon({ html:'<div style="background:#722F37;color:white;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,0.35)">🍷</div>', className:'', iconSize:[30,30], iconAnchor:[15,15] });
+    S.shops.forEach(s => {
+      if (s.lat && s.lng) {
+        const m = L.marker([s.lat,s.lng],{icon}).bindPopup(`<b>${s.name}</b><br>${s.address}, ${s.city}<br>👤 ${s.contact||'—'}${s.phone?'<br>📞 '+s.phone:''}`).addTo(S.map);
+        S.markers.push(m);
+      }
+    });
+  }
 }
 
 // ══════════════════════════════════════════
