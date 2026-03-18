@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Shaked Distributor</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#722F37">
@@ -19,11 +19,13 @@
       --gray: #6B7280; --light-gray: #E5E7EB; --text: #1F2937;
       --success: #10B981; --danger: #EF4444;
       --nav-height: 65px; --header-height: 56px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; }
 
     /* ── LOGIN ── */
-    #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(150deg, var(--wine-dark) 0%, var(--wine) 60%, var(--wine-light) 100%); padding: 2rem; }
+    #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; height: 100dvh; background: linear-gradient(150deg, var(--wine-dark) 0%, var(--wine) 60%, var(--wine-light) 100%); padding: 2rem; }
     .login-logo { font-size: 5rem; margin-bottom: 0.75rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
     .login-title { color: #fff; font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
     .login-subtitle { color: rgba(255,255,255,0.65); font-size: 0.95rem; margin-bottom: 3rem; margin-top: 0.25rem; }
@@ -31,11 +33,11 @@
     .login-btn:active { transform: scale(0.96); }
 
     /* ── APP SHELL ── */
-    #app { display: none; height: 100vh; flex-direction: column; }
+    #app { display: none; height: 100vh; height: 100dvh; flex-direction: column; }
     #app.visible { display: flex; }
 
     /* ── HEADER ── */
-    .app-header { background: var(--wine); color: var(--white); padding: 0 1rem; height: var(--header-height); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+    .app-header { background: var(--wine); color: var(--white); padding: 0 1rem; padding-top: var(--safe-top); height: calc(var(--header-height) + var(--safe-top)); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
     .header-left h1 { font-size: 1.05rem; font-weight: 700; }
     .header-left .header-date { font-size: 0.72rem; opacity: 0.75; margin-top: 1px; }
     .header-actions { display: flex; gap: 0.25rem; }
@@ -43,13 +45,13 @@
     .icon-btn:active { background: rgba(255,255,255,0.3); }
 
     /* ── SCREENS ── */
-    .screen { display: none; flex: 1; overflow-y: auto; padding-bottom: calc(var(--nav-height) + 0.5rem); }
+    .screen { display: none; flex: 1; overflow-y: auto; padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 0.5rem); }
     .screen.active { display: block; }
     #screen-map { padding-bottom: 0; }
-    #map-container { height: calc(100vh - var(--header-height) - var(--nav-height) - 52px); }
+    #map-container { height: calc(100vh - var(--header-height) - var(--nav-height) - var(--safe-bottom) - 52px); }
 
     /* ── BOTTOM NAV ── */
-    .bottom-nav { background: var(--white); border-top: 1px solid var(--light-gray); height: var(--nav-height); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,0.06); }
+    .bottom-nav { background: var(--white); border-top: 1px solid var(--light-gray); height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,0.06); }
     .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border: none; background: none; color: var(--gray); font-size: 0.62rem; font-weight: 500; }
     .nav-item .nav-icon { font-size: 1.35rem; }
     .nav-item.active { color: var(--wine); }
@@ -132,11 +134,11 @@
     .modal-close { background: var(--light-gray); border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; color: var(--gray); }
 
     /* ── FAB ── */
-    .fab { position: fixed; right: 1.1rem; bottom: calc(var(--nav-height) + 1rem); width: 52px; height: 52px; background: var(--wine); color: var(--white); border: none; border-radius: 50%; font-size: 1.6rem; cursor: pointer; box-shadow: 0 4px 18px rgba(114,47,55,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .fab { position: fixed; right: 1.1rem; bottom: calc(var(--nav-height) + var(--safe-bottom) + 1rem); width: 52px; height: 52px; background: var(--wine); color: var(--white); border: none; border-radius: 50%; font-size: 1.6rem; cursor: pointer; box-shadow: 0 4px 18px rgba(114,47,55,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
     .fab:active { transform: scale(0.92); }
 
     /* ── TOAST ── */
-    .toast { position: fixed; bottom: calc(var(--nav-height) + 1rem); left: 50%; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 0.65rem 1.2rem; border-radius: 50px; font-size: 0.83rem; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; max-width: 85vw; text-align: center; }
+    .toast { position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 1rem); left: 50%; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 0.65rem 1.2rem; border-radius: 50px; font-size: 0.83rem; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; max-width: 85vw; text-align: center; }
     .toast.show { opacity: 1; }
 
     /* ── MISC ── */
@@ -748,40 +750,32 @@ function openWaze(lat, lng) { window.open(`https://waze.com/ul?ll=${lat},${lng}&
 function openMultiStopNav(shops) {
   if (!shops || shops.length === 0) return;
 
-  // Google Maps multi-stop URL
-  // origin = my GPS location
-  // waypoints = intermediate stops
-  // destination = last stop
-  // Opens in Google Maps app on mobile automatically
-  
-  const origin = (_myLat && _myLng) ? `${_myLat},${_myLng}` : '';
-  const destination = `${shops[shops.length-1].lat},${shops[shops.length-1].lng}`;
-  
+  // Build Google Maps URL using full addresses (shows shop names correctly)
+  // Format: maps/dir/origin/address1/address2/.../addressN
+  const encode = (s) => encodeURIComponent(`${s.address}, ${s.city}, Israel`);
+
   let url;
+
   if (shops.length === 1) {
-    // Single stop — use Waze (better for single destination)
+    // Single stop — Waze is better
     url = `https://waze.com/ul?ll=${shops[0].lat},${shops[0].lng}&navigate=yes`;
-  } else if (shops.length === 2) {
-    // Two stops — Google Maps with origin → stop1 → stop2
-    const wp = `${shops[0].lat},${shops[0].lng}`;
-    url = `https://www.google.com/maps/dir/?api=1` +
-      (origin ? `&origin=${origin}` : '') +
-      `&destination=${destination}` +
-      `&waypoints=${wp}` +
-      `&travelmode=driving`;
   } else {
-    // 3+ stops — Google Maps with all waypoints
-    const waypoints = shops.slice(0, -1).map(s => `${s.lat},${s.lng}`).join('|');
-    url = `https://www.google.com/maps/dir/?api=1` +
-      (origin ? `&origin=${origin}` : '') +
-      `&destination=${destination}` +
-      `&waypoints=${waypoints}` +
-      `&travelmode=driving`;
+    // Build path-style Google Maps URL with full addresses
+    // This shows actual street names and is more readable
+    const origin = (_myLat && _myLng)
+      ? `${_myLat},${_myLng}`
+      : encode(shops[0]);
+
+    // All stops as address strings
+    const stopParts = shops.map(s => encode(s)).join('/');
+
+    // Use the path-style URL which supports named stops
+    url = `https://www.google.com/maps/dir/${encodeURIComponent(origin)}/${stopParts}/`;
   }
 
-  // Show stop order summary before opening
-  const names = shops.map((s,i) => `${i+1}. ${s.name}`).join('\n');
-  const msg = `Navigate ${shops.length} stops in order:\n${names}\n\nOpen in Google Maps?`;
+  // Show stop order before opening
+  const names = shops.map((s,i) => `${i+1}. ${s.name} — ${s.city}`).join('\n');
+  const msg = `🗺️ Navigate ${shops.length} stops:\n\n${names}\n\nOpen in Google Maps?`;
   if (confirm(msg)) {
     window.open(url, '_blank');
   }
