@@ -508,13 +508,18 @@ function fabAction() {
 let _selRegion = 'All';
 function selectRegion(el, region) {
   document.querySelectorAll('#region-chips .chip').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected'); _selRegion = region;
+  el.classList.add('selected');
+  _selRegion = region;
+  // Auto-replan if route already exists
+  if (S.routeShops.length > 0) planRoute();
 }
 
 async function planRoute() {
   const btn = document.getElementById('plan-btn');
   btn.disabled = true; btn.textContent = '⏳ Planning...';
-  let shops = _selRegion==='All' ? [...S.shops] : S.shops.filter(s => s.region===_selRegion);
+  // Reload shops from sheet to get latest data
+  await loadShops();
+  let shops = _selRegion==='All' ? [...S.shops] : S.shops.filter(s => s.region.trim() === _selRegion.trim());
   if (!shops.length) { showToast('No shops in this region'); btn.disabled=false; btn.textContent='🗺️ Plan My Day'; return; }
 
   // Geocode missing coords
