@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Shaked Distributor</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#722F37">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #722F37; --wine-light: #9B3A44; --wine-dark: #4A1E23;
+      --gold: #C9A84C; --bg: #F9F5F0; --white: #FFFFFF;
+      --gray: #6B7280; --light-gray: #E5E7EB; --text: #1F2937;
+      --success: #10B981; --danger: #EF4444;
+      --nav-height: 65px; --header-height: 56px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+
+    /* ── LOGIN ── */
+    #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(150deg, var(--wine-dark) 0%, var(--wine) 60%, var(--wine-light) 100%); padding: 2rem; }
+    .login-logo { font-size: 5rem; margin-bottom: 0.75rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+    .login-title { color: #fff; font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
+    .login-subtitle { color: rgba(255,255,255,0.65); font-size: 0.95rem; margin-bottom: 3rem; margin-top: 0.25rem; }
+    .login-btn { background: var(--white); color: var(--wine-dark); padding: 0.9rem 2rem; border-radius: 50px; font-size: 1rem; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: transform 0.1s; }
+    .login-btn:active { transform: scale(0.96); }
+
+    /* ── APP SHELL ── */
+    #app { display: none; height: 100vh; flex-direction: column; }
+    #app.visible { display: flex; }
+
+    /* ── HEADER ── */
+    .app-header { background: var(--wine); color: var(--white); padding: 0 1rem; height: var(--header-height); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+    .header-left h1 { font-size: 1.05rem; font-weight: 700; }
+    .header-left .header-date { font-size: 0.72rem; opacity: 0.75; margin-top: 1px; }
+    .header-actions { display: flex; gap: 0.25rem; }
+    .icon-btn { background: rgba(255,255,255,0.15); border: none; color: var(--white); cursor: pointer; padding: 0.45rem 0.6rem; border-radius: 8px; font-size: 1rem; }
+    .icon-btn:active { background: rgba(255,255,255,0.3); }
+
+    /* ── SCREENS ── */
+    .screen { display: none; flex: 1; overflow-y: auto; padding-bottom: calc(var(--nav-height) + 0.5rem); }
+    .screen.active { display: block; }
+    #screen-map { padding-bottom: 0; }
+    #map-container { height: calc(100vh - var(--header-height) - var(--nav-height)); }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav { background: var(--white); border-top: 1px solid var(--light-gray); height: var(--nav-height); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,0.06); }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border: none; background: none; color: var(--gray); font-size: 0.62rem; font-weight: 500; }
+    .nav-item .nav-icon { font-size: 1.35rem; }
+    .nav-item.active { color: var(--wine); }
+
+    /* ── CARDS / SECTIONS ── */
+    .card { background: var(--white); border-radius: 14px; padding: 1rem; margin: 0.6rem 0.9rem; box-shadow: 0 1px 5px rgba(0,0,0,0.07); }
+    .section-header { padding: 0.9rem 0.9rem 0.4rem; display: flex; justify-content: space-between; align-items: center; }
+    .section-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+
+    /* ── BUTTONS ── */
+    .btn { padding: 0.7rem 1.1rem; border-radius: 10px; border: none; cursor: pointer; font-size: 0.88rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.45rem; transition: opacity 0.15s; }
+    .btn:active { opacity: 0.75; }
+    .btn-primary { background: var(--wine); color: var(--white); }
+    .btn-secondary { background: var(--light-gray); color: var(--text); }
+    .btn-success { background: var(--success); color: var(--white); }
+    .btn-danger { background: var(--danger); color: var(--white); }
+    .btn-waze { background: #00C9E0; color: #000; }
+    .btn-sm { padding: 0.38rem 0.7rem; font-size: 0.78rem; border-radius: 8px; }
+    .btn-block { width: 100%; justify-content: center; }
+
+    /* ── FORMS ── */
+    .form-group { margin-bottom: 0.9rem; }
+    .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--gray); margin-bottom: 0.35rem; }
+    .form-input { width: 100%; padding: 0.72rem 0.85rem; border: 1.5px solid var(--light-gray); border-radius: 10px; font-size: 0.92rem; background: var(--white); color: var(--text); outline: none; transition: border-color 0.2s; }
+    .form-input:focus { border-color: var(--wine); }
+    select.form-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%236B7280' d='M5 7L0 2h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.85rem center; appearance: none; }
+
+    /* ── SHOP LIST ── */
+    .shop-item { display: flex; align-items: center; padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--light-gray); gap: 0.7rem; }
+    .shop-item:last-child { border-bottom: none; }
+    .shop-avatar { width: 38px; height: 38px; border-radius: 10px; background: var(--wine); color: var(--white); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+    .shop-info { flex: 1; min-width: 0; }
+    .shop-name { font-weight: 600; font-size: 0.9rem; }
+    .shop-detail { font-size: 0.74rem; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .shop-actions { display: flex; gap: 0.35rem; flex-shrink: 0; }
+
+    /* ── ROUTE ── */
+    .region-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 0.9rem 0.75rem; }
+    .chip { padding: 0.45rem 0.9rem; border-radius: 20px; border: 2px solid var(--light-gray); background: var(--white); font-size: 0.82rem; cursor: pointer; font-weight: 500; }
+    .chip.selected { border-color: var(--wine); background: var(--wine); color: var(--white); }
+    .route-item { display: flex; align-items: flex-start; padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--light-gray); gap: 0.7rem; }
+    .route-item:last-child { border-bottom: none; }
+    .route-num { width: 28px; height: 28px; border-radius: 50%; background: var(--wine); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+    .route-num.visited { background: var(--success); }
+    .route-info { flex: 1; min-width: 0; }
+    .route-name { font-weight: 600; font-size: 0.88rem; }
+    .route-sub { font-size: 0.73rem; color: var(--gray); margin-top: 2px; }
+    .route-btns { display: flex; gap: 0.3rem; flex-shrink: 0; }
+
+    /* ── SALES ── */
+    .sale-item { padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--light-gray); }
+    .sale-item:last-child { border-bottom: none; }
+    .sale-header { display: flex; justify-content: space-between; align-items: center; }
+    .sale-wine { font-weight: 600; font-size: 0.9rem; }
+    .sale-qty { background: var(--wine); color: var(--white); padding: 0.18rem 0.55rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
+    .sale-detail { font-size: 0.74rem; color: var(--gray); margin-top: 3px; }
+
+    /* ── REPORTS ── */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; padding: 0 0.9rem; margin-bottom: 0.5rem; }
+    .stat-card { background: var(--white); border-radius: 12px; padding: 0.9rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+    .stat-value { font-size: 1.75rem; font-weight: 800; color: var(--wine); }
+    .stat-label { font-size: 0.72rem; color: var(--gray); margin-top: 2px; }
+    .bar-chart { padding: 0 0.9rem 1rem; }
+    .bar-row { display: flex; align-items: center; margin-bottom: 0.55rem; gap: 0.5rem; }
+    .bar-label { width: 95px; font-size: 0.72rem; text-align: right; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+    .bar-track { flex: 1; background: var(--light-gray); border-radius: 4px; height: 20px; overflow: hidden; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--wine-dark), var(--wine-light)); border-radius: 4px; display: flex; align-items: center; padding-left: 6px; color: white; font-size: 0.68rem; font-weight: 700; min-width: 20px; transition: width 0.6s ease; }
+
+    /* ── TABS ── */
+    .tab-bar { display: flex; border-bottom: 2px solid var(--light-gray); margin: 0 0.9rem 0.75rem; }
+    .tab { flex: 1; text-align: center; padding: 0.55rem; font-size: 0.82rem; font-weight: 600; color: var(--gray); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+
+    /* ── MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; align-items: flex-end; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--white); border-radius: 22px 22px 0 0; padding: 1.4rem; width: 100%; max-height: 92vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; }
+    .modal-title { font-size: 1.05rem; font-weight: 700; }
+    .modal-close { background: var(--light-gray); border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; color: var(--gray); }
+
+    /* ── FAB ── */
+    .fab { position: fixed; right: 1.1rem; bottom: calc(var(--nav-height) + 1rem); width: 52px; height: 52px; background: var(--wine); color: var(--white); border: none; border-radius: 50%; font-size: 1.6rem; cursor: pointer; box-shadow: 0 4px 18px rgba(114,47,55,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .fab:active { transform: scale(0.92); }
+
+    /* ── TOAST ── */
+    .toast { position: fixed; bottom: calc(var(--nav-height) + 1rem); left: 50%; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 0.65rem 1.2rem; border-radius: 50px; font-size: 0.83rem; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; max-width: 85vw; text-align: center; }
+    .toast.show { opacity: 1; }
+
+    /* ── MISC ── */
+    .loading { display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--gray); gap: 0.5rem; font-size: 0.88rem; }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--light-gray); border-top-color: var(--wine); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 2.5rem 1.5rem; color: var(--gray); }
+    .empty-icon { font-size: 2.8rem; margin-bottom: 0.75rem; }
+    .empty-text { font-size: 0.88rem; line-height: 1.5; }
+    .search-bar { padding: 0.65rem 0.9rem 0; }
+    .search-input { width: 100%; padding: 0.6rem 1rem; border: 1.5px solid var(--light-gray); border-radius: 50px; font-size: 0.88rem; background: var(--white); outline: none; }
+    .search-input:focus { border-color: var(--wine); }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 20px; font-size: 0.68rem; font-weight: 600; background: var(--light-gray); color: var(--gray); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ LOGIN -->
+<div id="login-screen">
+  <div class="login-logo">🍷</div>
+  <div class="login-title">Shaked Distributor</div>
+  <div class="login-subtitle">Sales Route Manager</div>
+  <button class="login-btn" onclick="startLogin()">
+    <svg width="20" height="20" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+    Sign in with Google
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════ APP -->
+<div id="app">
+
+  <header class="app-header">
+    <div class="header-left">
+      <h1 id="screen-title">🗺️ Route Planner</h1>
+      <div class="header-date" id="header-date"></div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="syncData()" title="Sync">🔄</button>
+      <button class="icon-btn" onclick="logout()" title="Logout">👤</button>
+    </div>
+  </header>
+
+  <!-- ── ROUTE SCREEN ── -->
+  <div class="screen active" id="screen-route">
+    <div class="section-header"><span class="section-title">Select Region</span></div>
+    <div class="region-chips" id="region-chips">
+      <div class="chip selected" onclick="selectRegion(this,'All')">All Shops</div>
+      <div class="chip" onclick="selectRegion(this,'South')">South</div>
+      <div class="chip" onclick="selectRegion(this,'Negev')">Negev</div>
+      <div class="chip" onclick="selectRegion(this,'Eilat')">Eilat</div>
+      <div class="chip" onclick="selectRegion(this,'Beer Sheva')">Beer Sheva</div>
+      <div class="chip" onclick="selectRegion(this,'Ashdod')">Ashdod</div>
+      <div class="chip" onclick="selectRegion(this,'Ashkelon')">Ashkelon</div>
+    </div>
+    <div style="padding: 0 0.9rem 0.5rem;">
+      <button class="btn btn-primary btn-block" onclick="planRoute()" id="plan-btn">🗺️ Plan My Day</button>
+    </div>
+    <div id="route-list">
+      <div class="empty-state">
+        <div class="empty-icon">🗺️</div>
+        <div class="empty-text">Choose a region and tap<br>"Plan My Day" to optimize your route</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAP SCREEN ── -->
+  <div class="screen" id="screen-map">
+    <div id="map-container"></div>
+  </div>
+
+  <!-- ── SHOPS SCREEN ── -->
+  <div class="screen" id="screen-shops">
+    <div class="search-bar">
+      <input class="search-input" type="text" placeholder="🔍 Search by name or city..." oninput="filterShops(this.value)">
+    </div>
+    <div class="section-header">
+      <span class="section-title" id="shops-count">All Shops</span>
+    </div>
+    <div class="card" style="padding:0" id="shops-list">
+      <div class="loading"><div class="spinner"></div> Loading shops...</div>
+    </div>
+  </div>
+
+  <!-- ── SALES SCREEN ── -->
+  <div class="screen" id="screen-sales">
+    <div class="section-header"><span class="section-title">Sales Log</span></div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="setSalesFilter('today',this)">Today</div>
+      <div class="tab" onclick="setSalesFilter('week',this)">This Week</div>
+      <div class="tab" onclick="setSalesFilter('month',this)">Month</div>
+      <div class="tab" onclick="setSalesFilter('all',this)">All</div>
+    </div>
+    <div id="sales-list">
+      <div class="loading"><div class="spinner"></div> Loading sales...</div>
+    </div>
+  </div>
+
+  <!-- ── REPORTS SCREEN ── -->
+  <div class="screen" id="screen-reports">
+    <div class="section-header" style="padding-top:0.9rem"><span class="section-title">📊 Reports</span></div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="setReportPeriod('day',this)">Today</div>
+      <div class="tab" onclick="setReportPeriod('week',this)">This Week</div>
+      <div class="tab" onclick="setReportPeriod('month',this)">This Month</div>
+    </div>
+    <div id="reports-content"></div>
+  </div>
+
+  <!-- ── BOTTOM NAV ── -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="showScreen('route',this)"><span class="nav-icon">🗺️</span>Route</button>
+    <button class="nav-item" onclick="showScreen('map',this)"><span class="nav-icon">📍</span>Map</button>
+    <button class="nav-item" onclick="showScreen('shops',this)"><span class="nav-icon">🏪</span>Shops</button>
+    <button class="nav-item" onclick="showScreen('sales',this)"><span class="nav-icon">🍷</span>Sales</button>
+    <button class="nav-item" onclick="showScreen('reports',this)"><span class="nav-icon">📊</span>Reports</button>
+  </nav>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab" onclick="fabAction()" style="display:none">+</button>
+
+<!-- ═══ MODAL: Add/Edit Shop ═══ -->
+<div class="modal-overlay" id="shop-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="shop-modal-title">Add Shop</span>
+      <button class="modal-close" onclick="closeModal('shop-modal')">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">Shop Name *</label><input class="form-input" id="sh-name" type="text" placeholder="e.g. Super-Dosh Beer Sheva"></div>
+    <div class="form-group"><label class="form-label">Street Address *</label><input class="form-input" id="sh-address" type="text" placeholder="Street and number"></div>
+    <div class="form-group"><label class="form-label">City *</label><input class="form-input" id="sh-city" type="text" placeholder="e.g. Beer Sheva"></div>
+    <div class="form-group">
+      <label class="form-label">Region</label>
+      <select class="form-input" id="sh-region">
+        <option value="South">South</option><option value="Negev">Negev</option>
+        <option value="Eilat">Eilat</option><option value="Beer Sheva">Beer Sheva</option>
+        <option value="Ashdod">Ashdod</option><option value="Ashkelon">Ashkelon</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Contact Person</label><input class="form-input" id="sh-contact" type="text" placeholder="Name of contact at the shop"></div>
+    <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="sh-phone" type="tel" placeholder="05X-XXXXXXX"></div>
+    <input type="hidden" id="sh-id">
+    <button class="btn btn-primary btn-block" onclick="saveShop()">💾 Save Shop</button>
+    <div style="height:0.5rem"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Log Sale ═══ -->
+<div class="modal-overlay" id="sale-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Log a Sale</span>
+      <button class="modal-close" onclick="closeModal('sale-modal')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Shop *</label>
+      <select class="form-input" id="sl-shop"><option value="">Select shop...</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Wine *</label>
+      <select class="form-input" id="sl-wine">
+        <option value="">Select wine...</option>
+        <option>Cabernet Sauvignon</option><option>Merlot</option><option>Chardonnay</option>
+        <option>Sauvignon Blanc</option><option>Rosé</option><option>Shiraz</option>
+        <option>Pinot Noir</option><option>Moscato</option><option>Sparkling White</option>
+        <option>Red Blend</option><option>White Blend</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Quantity (bottles) *</label><input class="form-input" id="sl-qty" type="number" min="1" placeholder="e.g. 12"></div>
+    <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="sl-date" type="date"></div>
+    <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="sl-notes" type="text" placeholder="Optional notes..."></div>
+    <button class="btn btn-primary btn-block" onclick="saveSale()">🍷 Log Sale</button>
+    <div style="height:0.5rem"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG — your credentials are embedded
+// ══════════════════════════════════════════
+const CONFIG = {
+  CLIENT_ID: '464358807951-6d4l48aj7j7psviscohuij59cp4uckkn.apps.googleusercontent.com',
+  SPREADSHEET_ID: '1va3yRMAkhyS_fgrw-PaMC6CRKw8rk3DKXHy6fEzT8Y4',
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
+  ISRAEL_LAT: 31.0, ISRAEL_LNG: 34.8, ISRAEL_ZOOM: 8
+};
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+const S = {
+  token: null, tokenClient: null,
+  shops: [], sales: [],
+  currentScreen: 'route', selectedRegion: 'All',
+  salesFilter: 'today', reportPeriod: 'day',
+  map: null, markers: [], routeShops: []
+};
+
+// ══════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════
+function startLogin() {
+  const tryInit = () => {
+    if (!window.google?.accounts?.oauth2) { setTimeout(tryInit, 150); return; }
+    S.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.CLIENT_ID,
+      scope: CONFIG.SCOPES,
+      callback: (resp) => {
+        if (resp.error) { showToast('Login failed: ' + resp.error); return; }
+        S.token = resp.access_token;
+        onLogin();
+      }
+    });
+    S.tokenClient.requestAccessToken();
+  };
+  tryInit();
+}
+
+async function onLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  updateHeaderDate();
+  showToast('Initializing sheets...');
+  await initSheets();
+  showToast('Loading data...');
+  await Promise.all([loadShops(), loadSales()]);
+  renderShops(); renderSales(); renderReports();
+  initMap();
+  updateFAB();
+  showToast('Ready ✓');
+}
+
+function logout() {
+  if (!confirm('Sign out?')) return;
+  S.token = null;
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ══════════════════════════════════════════
+// SHEETS API
+// ══════════════════════════════════════════
+async function sheetsGet(range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${S.token}` } });
+  if (!r.ok) { const e = await r.text(); throw new Error(e); }
+  return r.json();
+}
+async function sheetsAppend(range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+  const r = await fetch(url, { method:'POST', headers:{ Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ values }) });
+  if (!r.ok) { const e = await r.text(); throw new Error(e); }
+  return r.json();
+}
+async function sheetsUpdate(range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
+  const r = await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${S.token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ values }) });
+  if (!r.ok) { const e = await r.text(); throw new Error(e); }
+  return r.json();
+}
+async function sheetsClear(range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:clear`;
+  await fetch(url, { method:'POST', headers:{ Authorization:`Bearer ${S.token}` } });
+}
+
+async function initSheets() {
+  try {
+    const s = await sheetsGet('Shops!A1'); const sv = s.values;
+    if (!sv || sv[0][0] !== 'shop_id') await sheetsUpdate('Shops!A1:J1',[['shop_id','name','address','city','contact_name','phone','lat','lng','region','active']]);
+    const sa = await sheetsGet('Sales!A1'); const sav = sa.values;
+    if (!sav || sav[0][0] !== 'sale_id') await sheetsUpdate('Sales!A1:G1',[['sale_id','date','shop_id','shop_name','wine_name','quantity','notes']]);
+  } catch(e) { console.error('initSheets:', e); }
+}
+
+// ══════════════════════════════════════════
+// DATA LOADING
+// ══════════════════════════════════════════
+async function loadShops() {
+  try {
+    const d = await sheetsGet('Shops!A2:J2000');
+    S.shops = (d.values||[]).map(r => ({
+      id:r[0]||'', name:r[1]||'', address:r[2]||'', city:r[3]||'',
+      contact:r[4]||'', phone:r[5]||'', lat:parseFloat(r[6])||null,
+      lng:parseFloat(r[7])||null, region:r[8]||'Other', active:r[9]!=='FALSE'
+    })).filter(s => s.name && s.active);
+  } catch(e) { console.error('loadShops:', e); }
+}
+async function loadSales() {
+  try {
+    const d = await sheetsGet('Sales!A2:G2000');
+    S.sales = (d.values||[]).map(r => ({
+      id:r[0]||'', date:r[1]||'', shopId:r[2]||'', shopName:r[3]||'',
+      wine:r[4]||'', qty:parseInt(r[5])||0, notes:r[6]||''
+    })).filter(s => s.wine);
+  } catch(e) { console.error('loadSales:', e); }
+}
+async function syncData() { showToast('Syncing...'); await Promise.all([loadShops(),loadSales()]); renderShops(); renderSales(); renderReports(); updateMapMarkers(); showToast('Synced ✓'); }
+
+// ══════════════════════════════════════════
+// GEOCODING — Nominatim (free, no key)
+// ══════════════════════════════════════════
+async function geocode(address, city) {
+  const q = encodeURIComponent(`${address}, ${city}, Israel`);
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=il`, { headers:{'Accept-Language':'en'} });
+    const d = await r.json();
+    if (d.length) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+  } catch(e) { console.error('geocode:', e); }
+  return null;
+}
+
+// ══════════════════════════════════════════
+// ROUTE OPTIMIZATION — OSRM (free)
+// ══════════════════════════════════════════
+async function optimizeRoute(shops) {
+  if (shops.length <= 1) return shops;
+  const coords = shops.map(s => `${s.lng},${s.lat}`).join(';');
+  try {
+    const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?roundtrip=false&source=first&destination=last`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.code === 'Ok' && d.waypoints) {
+      return d.waypoints.map(wp => shops[wp.waypoint_index]);
+    }
+  } catch(e) { console.error('OSRM:', e); }
+  return shops; // fallback: original order
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+const SCREEN_TITLES = { route:'🗺️ Route Planner', map:'📍 Map View', shops:'🏪 Shops', sales:'🍷 Sales Log', reports:'📊 Reports' };
+function showScreen(name, navEl) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  S.currentScreen = name;
+  document.getElementById('screen-title').textContent = SCREEN_TITLES[name]||name;
+  if (name==='map' && S.map) setTimeout(()=>S.map.invalidateSize(),120);
+  if (name==='shops') renderShops();
+  if (name==='sales') renderSales();
+  if (name==='reports') renderReports();
+  updateFAB();
+}
+function updateFAB() {
+  const fab = document.getElementById('fab');
+  if (S.currentScreen==='shops') { fab.style.display='flex'; fab.textContent='+'; }
+  else if (S.currentScreen==='sales') { fab.style.display='flex'; fab.textContent='🍷'; }
+  else fab.style.display='none';
+}
+function fabAction() {
+  if (S.currentScreen==='shops') openShopModal();
+  else if (S.currentScreen==='sales') openSaleModal();
+}
+
+// ══════════════════════════════════════════
+// ROUTE PLANNER
+// ══════════════════════════════════════════
+let _selRegion = 'All';
+function selectRegion(el, region) {
+  document.querySelectorAll('#region-chips .chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected'); _selRegion = region;
+}
+
+async function planRoute() {
+  const btn = document.getElementById('plan-btn');
+  btn.disabled = true; btn.textContent = '⏳ Planning...';
+  let shops = _selRegion==='All' ? [...S.shops] : S.shops.filter(s => s.region===_selRegion);
+  if (!shops.length) { showToast('No shops in this region'); btn.disabled=false; btn.textContent='🗺️ Plan My Day'; return; }
+
+  // Geocode missing coords
+  showToast(`Geocoding ${shops.length} shops...`);
+  for (const shop of shops) {
+    if (!shop.lat || !shop.lng) {
+      const c = await geocode(shop.address, shop.city);
+      if (c) { shop.lat=c.lat; shop.lng=c.lng; await updateShopCoords(shop); }
+      await new Promise(r=>setTimeout(r,1100)); // Nominatim rate limit: 1 req/sec
+    }
+  }
+  const withCoords = shops.filter(s => s.lat && s.lng);
+  if (!withCoords.length) { showToast('Could not locate any addresses'); btn.disabled=false; btn.textContent='🗺️ Plan My Day'; return; }
+
+  showToast('Optimizing route...');
+  const optimized = await optimizeRoute(withCoords);
+  S.routeShops = optimized.map(s => ({...s, visited:false}));
+  renderRoute();
+  btn.disabled=false; btn.textContent='🗺️ Plan My Day';
+  showToast(`✓ Route ready — ${S.routeShops.length} stops`);
+}
+
+function renderRoute() {
+  const c = document.getElementById('route-list');
+  if (!S.routeShops.length) { c.innerHTML='<div class="empty-state"><div class="empty-icon">🗺️</div><div class="empty-text">Press Plan My Day to generate route</div></div>'; return; }
+  c.innerHTML = `<div class="section-header"><span class="section-title">Today — ${S.routeShops.length} stops</span></div>
+  <div class="card" style="padding:0">
+    ${S.routeShops.map((s,i)=>`
+      <div class="route-item">
+        <div class="route-num ${s.visited?'visited':''}">${s.visited?'✓':i+1}</div>
+        <div class="route-info">
+          <div class="route-name">${s.name}</div>
+          <div class="route-sub">📍 ${s.address}, ${s.city}</div>
+          ${s.contact?`<div class="route-sub">👤 ${s.contact}${s.phone?' · '+s.phone:''}</div>`:''}
+        </div>
+        <div class="route-btns">
+          <button class="btn btn-sm btn-waze" onclick="openWaze(${s.lat},${s.lng})">🚗</button>
+          <button class="btn btn-sm btn-success" onclick="markVisited(${i})">✓</button>
+          <button class="btn btn-sm btn-secondary" onclick="openSaleForShop('${s.id}')">🍷</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function openWaze(lat, lng) { window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,'_blank'); }
+function markVisited(i) { S.routeShops[i].visited = !S.routeShops[i].visited; renderRoute(); renderReports(); }
+
+async function updateShopCoords(shop) {
+  try {
+    const d = await sheetsGet('Shops!A2:A2000');
+    const idx = (d.values||[]).findIndex(r=>r[0]===shop.id);
+    if (idx>=0) await sheetsUpdate(`Shops!G${idx+2}:H${idx+2}`,[[shop.lat,shop.lng]]);
+  } catch(e) { console.error('updateCoords:',e); }
+}
+
+// ══════════════════════════════════════════
+// MAP — Leaflet + OpenStreetMap
+// ══════════════════════════════════════════
+function initMap() {
+  if (S.map) return;
+  S.map = L.map('map-container').setView([CONFIG.ISRAEL_LAT, CONFIG.ISRAEL_LNG], CONFIG.ISRAEL_ZOOM);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(S.map);
+  updateMapMarkers();
+}
+function updateMapMarkers() {
+  if (!S.map) return;
+  S.markers.forEach(m=>m.remove()); S.markers=[];
+  const icon = L.divIcon({ html:'<div style="background:#722F37;color:white;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,0.35)">🍷</div>', className:'', iconSize:[30,30], iconAnchor:[15,15] });
+  S.shops.forEach(s => {
+    if (s.lat && s.lng) {
+      const m = L.marker([s.lat,s.lng],{icon}).bindPopup(`<b>${s.name}</b><br>${s.address}, ${s.city}<br>👤 ${s.contact||'—'}${s.phone?'<br>📞 '+s.phone:''}`).addTo(S.map);
+      S.markers.push(m);
+    }
+  });
+}
+
+// ══════════════════════════════════════════
+// SHOPS
+// ══════════════════════════════════════════
+function renderShops(filter='') {
+  const list = document.getElementById('shops-list');
+  let shops = filter ? S.shops.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()) || s.city.toLowerCase().includes(filter.toLowerCase())) : S.shops;
+  document.getElementById('shops-count').textContent = `All Shops (${shops.length})`;
+  if (!shops.length) { list.innerHTML='<div class="empty-state"><div class="empty-icon">🏪</div><div class="empty-text">No shops yet.<br>Tap + to add your first shop.</div></div>'; return; }
+  list.innerHTML = shops.map(s=>`
+    <div class="shop-item">
+      <div class="shop-avatar">${s.name.charAt(0).toUpperCase()}</div>
+      <div class="shop-info">
+        <div class="shop-name">${s.name}</div>
+        <div class="shop-detail">📍 ${s.address}, ${s.city}</div>
+        <div class="shop-detail">👤 ${s.contact||'—'} &nbsp; <span class="badge">${s.region}</span></div>
+      </div>
+      <div class="shop-actions">
+        <button class="btn btn-sm btn-secondary" onclick="openShopModal('${s.id}')">✏️</button>
+        <button class="btn btn-sm btn-secondary" onclick="openSaleForShop('${s.id}')">🍷</button>
+      </div>
+    </div>`).join('');
+}
+function filterShops(v) { renderShops(v); }
+
+function openShopModal(shopId=null) {
+  ['sh-id','sh-name','sh-address','sh-city','sh-contact','sh-phone'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sh-region').value='South';
+  document.getElementById('shop-modal-title').textContent = shopId ? 'Edit Shop' : 'Add Shop';
+  if (shopId) {
+    const s = S.shops.find(x=>x.id===shopId);
+    if (s) { document.getElementById('sh-id').value=s.id; document.getElementById('sh-name').value=s.name; document.getElementById('sh-address').value=s.address; document.getElementById('sh-city').value=s.city; document.getElementById('sh-region').value=s.region; document.getElementById('sh-contact').value=s.contact; document.getElementById('sh-phone').value=s.phone; }
+  }
+  openModal('shop-modal');
+}
+
+async function saveShop() {
+  const id=document.getElementById('sh-id').value, name=document.getElementById('sh-name').value.trim(),
+    address=document.getElementById('sh-address').value.trim(), city=document.getElementById('sh-city').value.trim(),
+    region=document.getElementById('sh-region').value, contact=document.getElementById('sh-contact').value.trim(),
+    phone=document.getElementById('sh-phone').value.trim();
+  if (!name||!address||!city) { showToast('Name, address and city are required'); return; }
+  showToast('Locating address...');
+  const c = await geocode(address,city);
+  const lat=c?c.lat:'', lng=c?c.lng:'';
+  try {
+    if (id) {
+      const d = await sheetsGet('Shops!A2:A2000');
+      const idx = (d.values||[]).findIndex(r=>r[0]===id);
+      if (idx>=0) await sheetsUpdate(`Shops!A${idx+2}:J${idx+2}`,[[id,name,address,city,contact,phone,lat,lng,region,'TRUE']]);
+    } else {
+      await sheetsAppend('Shops!A:J',[['S'+Date.now(),name,address,city,contact,phone,lat,lng,region,'TRUE']]);
+    }
+    showToast(id?'Shop updated ✓':'Shop added ✓');
+    closeModal('shop-modal');
+    await loadShops(); renderShops(); updateMapMarkers();
+  } catch(e) { showToast('Error saving shop'); console.error(e); }
+}
+
+// ══════════════════════════════════════════
+// SALES
+// ══════════════════════════════════════════
+function openSaleModal() {
+  const sel = document.getElementById('sl-shop');
+  sel.innerHTML = '<option value="">Select shop...</option>' + S.shops.map(s=>`<option value="${s.id}">${s.name} — ${s.city}</option>`).join('');
+  document.getElementById('sl-date').value = todayStr();
+  document.getElementById('sl-qty').value=''; document.getElementById('sl-notes').value=''; document.getElementById('sl-wine').value='';
+  openModal('sale-modal');
+}
+function openSaleForShop(shopId) {
+  openSaleModal();
+  setTimeout(()=>{ document.getElementById('sl-shop').value=shopId; },50);
+}
+
+async function saveSale() {
+  const shopId=document.getElementById('sl-shop').value, wine=document.getElementById('sl-wine').value,
+    qty=document.getElementById('sl-qty').value, date=document.getElementById('sl-date').value,
+    notes=document.getElementById('sl-notes').value;
+  if (!shopId||!wine||!qty) { showToast('Shop, wine and quantity are required'); return; }
+  const shop = S.shops.find(s=>s.id===shopId);
+  try {
+    await sheetsAppend('Sales!A:G',[['SALE'+Date.now(),date,shopId,shop?shop.name:'',wine,parseInt(qty),notes]]);
+    showToast('Sale logged ✓');
+    closeModal('sale-modal');
+    await loadSales(); renderSales(); renderReports();
+  } catch(e) { showToast('Error saving sale'); console.error(e); }
+}
+
+function setSalesFilter(f,el) { document.querySelectorAll('#screen-sales .tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); S.salesFilter=f; renderSales(); }
+function renderSales() {
+  const c = document.getElementById('sales-list');
+  let sales = [...S.sales].reverse();
+  if (S.salesFilter==='today') sales=sales.filter(s=>s.date===todayStr());
+  else if (S.salesFilter==='week') sales=sales.filter(s=>s.date>=daysAgo(7));
+  else if (S.salesFilter==='month') sales=sales.filter(s=>s.date>=daysAgo(30));
+  if (!sales.length) { c.innerHTML='<div class="empty-state"><div class="empty-icon">🍷</div><div class="empty-text">No sales in this period.<br>Tap 🍷 to log a sale.</div></div>'; return; }
+  c.innerHTML='<div class="card" style="padding:0">'+sales.map(s=>`
+    <div class="sale-item">
+      <div class="sale-header"><span class="sale-wine">🍷 ${s.wine}</span><span class="sale-qty">${s.qty} btl</span></div>
+      <div class="sale-detail">🏪 ${s.shopName} &nbsp;·&nbsp; 📅 ${fmtDate(s.date)}</div>
+      ${s.notes?`<div class="sale-detail">📝 ${s.notes}</div>`:''}
+    </div>`).join('')+'</div>';
+}
+
+// ══════════════════════════════════════════
+// REPORTS
+// ══════════════════════════════════════════
+function setReportPeriod(p,el) { document.querySelectorAll('#screen-reports .tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); S.reportPeriod=p; renderReports(); }
+function renderReports() {
+  const c = document.getElementById('reports-content');
+  let sales = S.sales;
+  if (S.reportPeriod==='day') sales=sales.filter(s=>s.date===todayStr());
+  else if (S.reportPeriod==='week') sales=sales.filter(s=>s.date>=daysAgo(7));
+  else if (S.reportPeriod==='month') sales=sales.filter(s=>s.date>=daysAgo(30));
+  const totalBottles=sales.reduce((n,s)=>n+s.qty,0);
+  const byWine={}, byShop={};
+  sales.forEach(s=>{ byWine[s.wine]=(byWine[s.wine]||0)+s.qty; byShop[s.shopName]=(byShop[s.shopName]||0)+s.qty; });
+  const wines=Object.entries(byWine).sort((a,b)=>b[1]-a[1]);
+  const shops=Object.entries(byShop).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxW=wines.length?wines[0][1]:1, maxS=shops.length?shops[0][1]:1;
+  const visited=S.routeShops.filter(s=>s.visited).length;
+  c.innerHTML=`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-value">${totalBottles}</div><div class="stat-label">Bottles Sold</div></div>
+      <div class="stat-card"><div class="stat-value">${sales.length}</div><div class="stat-label">Transactions</div></div>
+      <div class="stat-card"><div class="stat-value">${new Set(sales.map(s=>s.shopId)).size}</div><div class="stat-label">Shops Served</div></div>
+      <div class="stat-card"><div class="stat-value">${visited}/${S.routeShops.length}</div><div class="stat-label">Visited Today</div></div>
+    </div>
+    ${wines.length?`<div class="section-header"><span class="section-title">By Wine</span></div><div class="bar-chart">${wines.map(([w,q])=>`<div class="bar-row"><div class="bar-label">${w}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(q/maxW*100)}%">${q}</div></div></div>`).join('')}</div>`:''}
+    ${shops.length?`<div class="section-header"><span class="section-title">Top Shops</span></div><div class="bar-chart">${shops.map(([sh,q])=>`<div class="bar-row"><div class="bar-label">${sh}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(q/maxS*100)}%">${q}</div></div></div>`).join('')}</div>`:''}
+    ${!sales.length?'<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">No data for this period</div></div>':''}`;
+}
+
+// ══════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }));
+
+// ══════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════
+function showToast(msg, ms=2500) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),ms); }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function daysAgo(n) { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; }
+function fmtDate(s) { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+function updateHeaderDate() {
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const n=new Date();
+  document.getElementById('header-date').textContent=`${days[n.getDay()]}, ${months[n.getMonth()]} ${n.getDate()}`;
+}
+
+// ══════════════════════════════════════════
+// SERVICE WORKER
+// ══════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>

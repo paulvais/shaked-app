@@ -1,0 +1,18 @@
+{
+  "name": "Shaked Distributor",
+  "short_name": "Shaked",
+  "description": "Wine distribution route planner for the South Israel region",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4A1E23",
+  "theme_color": "#722F37",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
